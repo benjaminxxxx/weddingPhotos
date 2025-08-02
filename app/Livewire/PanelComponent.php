@@ -7,7 +7,7 @@ use Livewire\Component;
 
 class PanelComponent extends Component
 {
-    public $seccion = 'galeria';
+    public $seccion = 'oficiales';
     public $nombre;
     public $puedeSubirImagenes = false;
     public $puedeVerGaleria = true;

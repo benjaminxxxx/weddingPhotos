@@ -12,7 +12,7 @@ class OficialesComponent extends Component
 {
     public $imagenes = [];
     public $offset = 0;
-    public $limit = 100;
+    public $limit = 10;
     public $hasMore = true;
     public $loading = false;
     public $sliderOpen = false;
@@ -46,6 +46,19 @@ class OficialesComponent extends Component
         $this->bodaId = $boda->id;
         $this->cargarImagenesIniciales();
     }
+    private function cargarImagenesIniciales()
+    {
+        // Obtener total de imágenes para esta boda
+        $this->totalImagenes = Archivo::where('oficial', true)->count();
+        
+        // Cargar primeras imágenes
+        $this->imagenes = $this->obtenerImagenesConReacciones(0, $this->limit);
+        
+        // Actualizar el offset al número de imágenes cargadas
+        $this->offset = count($this->imagenes);
+        // Determinar si hay más imágenes para cargar
+        $this->hasMore = $this->offset < $this->totalImagenes;
+    }
 
     public function cargarMasImagenes()
     {
@@ -55,27 +68,30 @@ class OficialesComponent extends Component
 
         $this->loading = true;
         
-        // Incrementar offset para la siguiente página
-        $nuevoOffset = $this->offset + $this->limit;
-        
-        $nuevasImagenes = $this->obtenerImagenesConReacciones($nuevoOffset, $this->limit);
+        // Obtener el siguiente lote de imágenes
+        $nuevasImagenes = $this->obtenerImagenesConReacciones($this->offset, $this->limit);
 
         if (count($nuevasImagenes) > 0) {
+            // Fusionar las nuevas imágenes con las existentes
             $this->imagenes = array_merge($this->imagenes, $nuevasImagenes);
-            $this->offset = $nuevoOffset;
+            // Actualizar el offset
+            $this->offset = count($this->imagenes);
         }
 
-        // Verificar si hay más imágenes
-        $this->hasMore = ($this->offset + $this->limit) < $this->totalImagenes;
+        // Recalcular si hay más imágenes
+        $this->hasMore = $this->offset < $this->totalImagenes;
         $this->loading = false;
 
-        $this->dispatch('imagenesActualizadas', [
+        $data = [
             'imagenes' => $this->imagenes,
             'hasMore' => $this->hasMore,
             'loading' => $this->loading,
             'total' => $this->totalImagenes,
             'cargadas' => count($this->imagenes)
-        ]);
+        ];
+        //dd($data );
+        // Disparar evento para que Alpine.js actualice su estado
+        $this->dispatch('imagenesActualizadas',$data  );
     }
 
     public function abrirSlider($index)
@@ -85,7 +101,6 @@ class OficialesComponent extends Component
         
         $this->dispatch('sliderAbierto', [
             'index' => $this->currentImageIndex,
-            'imagen' => $this->imagenes[$this->currentImageIndex] ?? null,
             'totalImagenes' => count($this->imagenes)
         ]);
     }
@@ -109,15 +124,14 @@ class OficialesComponent extends Component
         if ($nuevoIndex !== $this->currentImageIndex) {
             $this->currentImageIndex = $nuevoIndex;
             $this->dispatch('sliderNavegado', [
-                'index' => $this->currentImageIndex,
-                'imagen' => $this->imagenes[$this->currentImageIndex] ?? null
+                'index' => $this->currentImageIndex
             ]);
         }
     }
 
     public function toggleReaction($imageId, $type)
     {
-        $this->userToken = Session::get('upload_token');
+        $this->userToken = Session::get('upload_token'); // Asegurarse de que el token esté disponible
 
         if (!$this->userToken) {
             $this->dispatch('sesionExpirada');
@@ -187,14 +201,14 @@ class OficialesComponent extends Component
 
         } catch (\Exception $e) {
             \Log::error('Error en toggleReaction: ' . $e->getMessage());
-            $this->dispatch('errorReaccion', 'Error al procesar la reacción');
+            $this->dispatch('errorReaccion', $e->getMessage());
         }
     }
 
     private function obtenerImagenesConReacciones($offset = 0, $limit = null)
     {
         $query = Archivo::where('oficial', true)
-            ->orderBy('created_at', 'desc');
+            ->orderBy('created_at', 'desc')->orderBy('id', 'desc');
 
         if ($offset > 0) {
             $query->skip($offset);
@@ -205,7 +219,6 @@ class OficialesComponent extends Component
         }
 
         return $query->get()->map(function ($archivo) {
-            // Verificar reacción del usuario actual
             $reactionKey = $this->userToken . '_' . $archivo->id;
             $userReaction = UserReaction::where('reaction_key', $reactionKey)->first();
 
@@ -221,17 +234,7 @@ class OficialesComponent extends Component
         })->toArray();
     }
 
-    private function cargarImagenesIniciales()
-    {
-        // Obtener total de imágenes para esta boda
-        $this->totalImagenes = Archivo::where('oficial', true)->count();
-        
-        // Cargar primeras imágenes
-        $this->imagenes = $this->obtenerImagenesConReacciones(0, $this->limit);
-        
-        // Verificar si hay más imágenes
-        $this->hasMore = $this->totalImagenes > $this->limit;
-    }
+    
 
     private function actualizarImagenLocal($imageId, $type, $reactionAdded, $previousType = null)
     {

@@ -20,7 +20,7 @@
         <div class="flex justify-around items-center py-2">
             @if ($puedeSubirImagenes)
                 <button @click="$wire.dispatch('abrirModuloCargarImagenes')"
-                    class="flex flex-col items-center text-stone-400 hover:text-black">
+                    class="flex flex-col items-center text-stone-400 hover:text-black animate-pulse">
                     <i class="fa fa-plus text-2xl mb-1"></i>
                     <span class="text-xs">Subir</span>
                 </button>
@@ -28,27 +28,28 @@
 
             @if ($puedeVerGaleria)
                 <button @click="$wire.set('seccion','galeria')"
-                    class="flex flex-col items-center text-stone-400 hover:text-black">
+                    class="flex flex-col items-center {{ $seccion === 'galeria' ? 'text-rose-400' : 'text-stone-400 hover:text-black' }}">
                     <i class="fa fa-images text-2xl mb-1"></i>
                     <span class="text-xs">Galería</span>
                 </button>
             @endif
 
-
             @if ($puedeVerPrincipal)
                 <button @click="$wire.set('seccion','oficiales')"
-                    class="flex flex-col items-center text-stone-400 hover:text-black">
+                    class="flex flex-col items-center {{ $seccion === 'oficiales' ? 'text-rose-400' : 'text-stone-400 hover:text-black' }}">
                     <i class="fa fa-star text-2xl mb-1"></i>
                     <span class="text-xs">Oficiales</span>
                 </button>
             @endif
+
             @if ($puedeVerPlanning)
                 <button @click="$wire.set('seccion','planning')"
-                    class="flex flex-col items-center text-stone-400 hover:text-black">
+                    class="flex flex-col items-center {{ $seccion === 'planning' ? 'text-rose-400' : 'text-stone-400 hover:text-black' }}">
                     <i class="fa fa-calendar text-2xl mb-1"></i>
                     <span class="text-xs">Planning</span>
                 </button>
             @endif
+
 
 
             @auth
@@ -73,4 +74,7 @@
 
     <!-- Modal -->
     <livewire:cargar-imagen-component />
+
+
+    <x-loading wire:loading/>
 </div>

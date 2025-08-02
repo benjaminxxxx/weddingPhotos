@@ -79,9 +79,9 @@
             <span class="ml-2 text-gray-600">Cargando más imágenes...</span>
         </div>
 
-        <!-- Debug info (opcional, para depuración) -->
+        <!-- Debug info -->
         <div x-show="showDebug" class="text-center py-4 text-sm text-gray-500">
-            <p>Cargadas: <span x-text="images.length"></span> | Total DB: <span x-text="totalImagenes"></span> | Más: <span x-text="hasMore ? 'Sí' : 'No'"></span></p>
+            <p>Cargadas: <span x-text="images.length"></span> | Total: <span x-text="totalImagenes"></span> | Más: <span x-text="hasMore ? 'Sí' : 'No'"></span></p>
         </div>
 
         <!-- Mensaje cuando no hay más imágenes -->
@@ -89,7 +89,7 @@
             <div class="text-gray-500 text-lg">✨ Has visto todas las imágenes (<span x-text="images.length"></span>)</div>
         </div>
 
-        <!-- Sentinel element para detectar scroll -->
+        <!-- Sentinel element -->
         <div x-ref="sentinel" class="h-1"></div>
     </div>
 
@@ -105,10 +105,9 @@
          @keydown.escape.window="cerrarSlider()"
          @keydown.arrow-left.window="anteriorImagen()"
          @keydown.arrow-right.window="siguienteImagen()"
-         @click.self="cerrarSlider()" {{-- Cierra el slider al hacer clic fuera de la imagen --}}
-         style="display: none;"> {{-- Oculta el modal inicialmente para evitar un flash --}}
+         @click.self="cerrarSlider()">
         
-        <!-- Botón cerrar - Más visible -->
+        <!-- Botón cerrar - MÁS VISIBLE -->
         <button @click="cerrarSlider()" 
                 class="absolute top-6 right-6 z-60 text-white hover:text-red-400 transition-colors bg-black bg-opacity-50 rounded-full p-3">
             <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3">
@@ -118,7 +117,7 @@
 
         <!-- Navegación izquierda -->
         <button @click="anteriorImagen()" 
-                x-show="currentImageIndex > 0" {{-- Solo muestra si no es la primera imagen --}}
+                x-show="currentImageIndex > 0"
                 class="absolute left-6 top-1/2 transform -translate-y-1/2 z-60 text-white hover:text-blue-400 transition-colors bg-black bg-opacity-50 rounded-full p-3">
             <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
@@ -127,7 +126,7 @@
 
         <!-- Navegación derecha -->
         <button @click="siguienteImagen()" 
-                x-show="currentImageIndex < images.length - 1 || hasMore" {{-- Muestra si no es la última o si hay más para cargar --}}
+                x-show="currentImageIndex < images.length - 1"
                 class="absolute right-6 top-1/2 transform -translate-y-1/2 z-60 text-white hover:text-blue-400 transition-colors bg-black bg-opacity-50 rounded-full p-3">
             <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
@@ -202,30 +201,30 @@
 @script
 <script>
 Alpine.data('galeria', () => ({
-    images: @json($imagenes), // Inicializa con las imágenes de Livewire
+    images: @json($imagenes),
     storageUrl: '{{ Storage::disk("public")->url("") }}',
     loading: @json($loading),
     hasMore: @json($hasMore),
     totalImagenes: @json($totalImagenes),
     sliderOpen: false,
     currentImageIndex: 0,
-    currentSliderImage: null, // La imagen actual mostrada en el slider
+    currentSliderImage: null,
     observer: null,
-    preloadedImages: new Map(), // Para precargar imágenes del slider
+    preloadedImages: new Map(),
     showError: false,
     errorMessage: '',
-    showDebug: false, // Cambiar a true para ver información de depuración en la UI
+    showDebug: false, // Cambiar a true para ver debug info
 
     init() {
         console.log('🎬 Galería inicializada:', {
-            imagenesCargadas: this.images.length,
-            totalEnDB: this.totalImagenes,
-            hayMas: this.hasMore
+            imagenes: this.images.length,
+            total: this.totalImagenes,
+            hasMore: this.hasMore
         });
         
         this.setupInfiniteScroll();
         this.setupEventListeners();
-        // La navegación por teclado se maneja con @keydown.window en el HTML
+        this.setupKeyboardNavigation();
     },
 
     setupInfiniteScroll() {
@@ -237,137 +236,135 @@ Alpine.data('galeria', () => ({
                 }
             });
         }, {
-            rootMargin: '200px' // Cargar cuando el sentinel esté a 200px del viewport
+            rootMargin: '200px' // Aumentar margen para cargar antes
         });
 
         this.observer.observe(this.$refs.sentinel);
     },
 
     setupEventListeners() {
-        // Evento cuando Livewire ha cargado más imágenes
         this.$wire.on('imagenesActualizadas', (data) => {
             const eventData = Array.isArray(data) ? data[0] : data;
-            console.log('📊 Imágenes actualizadas por Livewire:', eventData);
+            console.log('📊 Imágenes actualizadas:', eventData);
             
-            this.images = eventData.imagenes || []; // Reemplaza la lista completa
+            this.images = eventData.imagenes || [];
             this.hasMore = eventData.hasMore;
             this.loading = eventData.loading;
             this.totalImagenes = eventData.total || 0;
         });
 
-        // Evento cuando Livewire abre el slider
         this.$wire.on('sliderAbierto', (data) => {
             const eventData = Array.isArray(data) ? data[0] : data;
-            console.log('🖼️ Abriendo slider en índice:', eventData.index);
+            console.log('🖼️ Abriendo slider:', eventData);
             
             this.currentImageIndex = eventData.index;
-            this.currentSliderImage = this.images[this.currentImageIndex]; // Obtiene la imagen del array local
+            this.currentSliderImage = this.images[this.currentImageIndex];
             this.sliderOpen = true;
             this.precargarImagenes();
-            document.body.style.overflow = 'hidden'; // Evita el scroll del body
+            document.body.style.overflow = 'hidden';
         });
 
-        // Evento cuando Livewire cierra el slider
         this.$wire.on('sliderCerrado', () => {
             console.log('❌ Cerrando slider');
             this.sliderOpen = false;
-            document.body.style.overflow = 'auto'; // Restaura el scroll del body
+            document.body.style.overflow = 'auto';
         });
 
-        // Evento cuando Livewire navega el slider
         this.$wire.on('sliderNavegado', (data) => {
             const eventData = Array.isArray(data) ? data[0] : data;
-            console.log('🔄 Navegando slider a índice:', eventData.index);
+            console.log('🔄 Navegando slider:', eventData);
             
             this.currentImageIndex = eventData.index;
-            this.currentSliderImage = this.images[this.currentImageIndex]; // Obtiene la imagen del array local
+            this.currentSliderImage = eventData.imagen;
             this.precargarImagenes();
         });
 
-        // Evento cuando Livewire actualiza una reacción
         this.$wire.on('reaccionActualizada', (data) => {
             const eventData = Array.isArray(data) ? data[0] : data;
             this.actualizarReaccionLocal(eventData);
         });
 
-        // Evento para sesión expirada
         this.$wire.on('sesionExpirada', () => {
             this.mostrarError('Sesión expirada. Por favor, escanea el código QR nuevamente.');
         });
 
-        // Evento para errores generales de reacción
         this.$wire.on('errorReaccion', (message) => {
             const errorMsg = Array.isArray(message) ? message[0] : message;
             this.mostrarError(errorMsg);
         });
     },
 
-    // Llama a Livewire para cargar más imágenes
+    setupKeyboardNavigation() {
+        // Navegación por teclado global
+        document.addEventListener('keydown', (e) => {
+            if (this.sliderOpen) {
+                if (e.key === 'Escape') {
+                    this.cerrarSlider();
+                } else if (e.key === 'ArrowLeft') {
+                    this.anteriorImagen();
+                } else if (e.key === 'ArrowRight') {
+                    this.siguienteImagen();
+                }
+            }
+        });
+    },
+
     cargarMas() {
         if (this.loading || !this.hasMore) {
-            console.log('⏸️ No se puede cargar más: ya cargando o no hay más.');
+            console.log('⏸️ No se puede cargar más:', { loading: this.loading, hasMore: this.hasMore });
             return;
         }
         
+        console.log('🔄 Cargando más imágenes...');
         this.loading = true;
         this.$wire.cargarMasImagenes();
     },
 
-    // Llama a Livewire para abrir el slider
     abrirSlider(index) {
-        console.log('🎯 Solicitando abrir slider en índice:', index);
+        console.log('🎯 Abriendo slider en índice:', index);
         this.$wire.abrirSlider(index);
     },
 
-    // Llama a Livewire para cerrar el slider
     cerrarSlider() {
-        console.log('🚪 Solicitando cerrar slider');
+        console.log('🚪 Cerrando slider');
         this.$wire.cerrarSlider();
     },
 
-    // Llama a Livewire para navegar a la imagen anterior
     anteriorImagen() {
         if (this.currentImageIndex > 0) {
-            console.log('⬅️ Solicitando imagen anterior');
+            console.log('⬅️ Imagen anterior');
             this.$wire.navegarSlider('anterior');
         }
     },
 
-    // Llama a Livewire para navegar a la imagen siguiente
     siguienteImagen() {
         if (this.currentImageIndex < this.images.length - 1) {
-            console.log('➡️ Solicitando imagen siguiente');
+            console.log('➡️ Imagen siguiente');
             this.$wire.navegarSlider('siguiente');
         } else if (this.hasMore && !this.loading) {
-            // Si llegamos al final de las imágenes cargadas y hay más en la DB, cargar más
-            console.log('📥 Cargando más para continuar navegación en slider...');
+            console.log('📥 Cargando más para continuar navegación');
             this.cargarMas();
         }
     },
 
-    // Precarga imágenes alrededor de la imagen actual del slider
     precargarImagenes() {
-        // Precargar 2 imágenes hacia atrás y 2 hacia adelante
         const start = Math.max(0, this.currentImageIndex - 2);
         const end = Math.min(this.images.length - 1, this.currentImageIndex + 2);
 
         for (let i = start; i <= end; i++) {
             if (this.images[i] && !this.preloadedImages.has(i)) {
                 const img = new Image();
-                img.crossOrigin = "anonymous"; // Importante para evitar problemas CORS
+                img.crossOrigin = "anonymous";
                 img.src = this.storageUrl + this.images[i].archivo;
                 this.preloadedImages.set(i, img);
-                console.log('🖼️ Precargando:', this.images[i].archivo);
             }
         }
     },
 
-    // Llama a Livewire para alternar la reacción
     toggleReaction(imageId, type) {
         this.$wire.toggleReaction(imageId, type);
     },
 
-    // Actualiza el estado local de las reacciones en Alpine.js
     actualizarReaccionLocal(eventData) {
         const { imageId, type, reactionAdded, previousType, newCounts, userReaction } = eventData;
         
@@ -376,22 +373,21 @@ Alpine.data('galeria', () => ({
         if (imageIndex !== -1) {
             const imagen = this.images[imageIndex];
             
-            // Actualizar contadores con los valores frescos del servidor
+            // Actualizar contadores con los valores del servidor
             imagen.likes = newCounts.likes;
             imagen.unlikes = newCounts.unlikes;
             imagen.hearts = newCounts.hearts;
             
-            // Actualizar el estado de la reacción del usuario
+            // Actualizar estado de reacción del usuario
             imagen.user_reaction = userReaction;
         }
 
-        // Actualizar la imagen actual del slider si coincide
+        // Actualizar imagen actual del slider si coincide
         if (this.currentSliderImage && this.currentSliderImage.id === imageId) {
             this.currentSliderImage = { ...this.images[imageIndex] };
         }
     },
 
-    // Muestra un mensaje de error temporal
     mostrarError(message) {
         this.errorMessage = message;
         this.showError = true;
@@ -400,7 +396,6 @@ Alpine.data('galeria', () => ({
         }, 5000);
     },
 
-    // Limpieza al destruir el componente
     destroy() {
         if (this.observer) {
             this.observer.disconnect();

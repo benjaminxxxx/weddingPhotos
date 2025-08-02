@@ -10,7 +10,13 @@ class AprobarImagenesComponent extends Component
 {
     public $imagenesPorAprobar = [];
     public function mount(){
-        $this->imagenesPorAprobar = Archivo::where('aprobado',false)->get();
+        $this->cargarImagenesPorAprobar();
+    }
+    public function cargarImagenesPorAprobar()
+    {
+        // Cargar imágenes que aún no han sido aprobadas
+        $this->imagenesPorAprobar = Archivo::where('aprobado', false)->orderBy('created_at','desc')->get();
+        
     }
     public function aprobar($id){
         $archivo = Archivo::find($id);
@@ -18,6 +24,7 @@ class AprobarImagenesComponent extends Component
             $archivo->aprobado = true;
             $archivo->save();
             session()->flash('message', 'Imagen aprobada correctamente.');
+            $this->cargarImagenesPorAprobar();
         } else {
             session()->flash('error', 'Imagen no encontrada.');
         }
@@ -29,6 +36,7 @@ class AprobarImagenesComponent extends Component
             Storage::disk('public')->delete($archivo->archivo);
 
             $archivo->delete();
+            $this->cargarImagenesPorAprobar();
             session()->flash('message', 'Imagen eliminada correctamente.');
         } else {
             session()->flash('error', 'Imagen no encontrada.');
