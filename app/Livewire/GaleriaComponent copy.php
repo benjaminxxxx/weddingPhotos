@@ -12,12 +12,12 @@ class GaleriaComponent extends Component
 {
     public $imagenes = [];
     public $offset = 0;
-    public $limit = 5;
+    public $limit = 10; // Para pruebas rápidas, luego puedes cambiar a 10 o más
     public $hasMore = true;
     public $loading = false;
     public $sliderOpen = false;
     public $currentImageIndex = 0;
-    public $totalImagenes = 0;
+    public $totalImagenes = 0; // Total de imágenes disponibles en la base de datos
 
     protected $userToken;
     protected $bodaUuid;
@@ -28,7 +28,6 @@ class GaleriaComponent extends Component
     {
         // Obtener datos de la sesión
         $this->userToken = Session::get('upload_token');
-        
         $this->bodaUuid = Session::get('boda_uuid');
         $this->mesa = Session::get('mesa');
 
@@ -48,6 +47,23 @@ class GaleriaComponent extends Component
         $this->cargarImagenesIniciales();
     }
 
+    // Método para cargar las primeras imágenes y el total
+    private function cargarImagenesIniciales()
+    {
+        // Contar el total de imágenes para la boda actual
+        $this->totalImagenes = Archivo::where('aprobado', true)
+                                    ->where('oficial', false)
+                                    ->count();
+        
+        // Cargar el primer lote de imágenes
+        $this->imagenes = $this->obtenerImagenesConReacciones(0, $this->limit);
+        
+        // Actualizar el offset al número de imágenes cargadas
+        $this->offset = count($this->imagenes);
+        // Determinar si hay más imágenes para cargar
+        $this->hasMore = $this->offset < $this->totalImagenes;
+    }
+
     public function cargarMasImagenes()
     {
         if (!$this->hasMore || $this->loading) {
@@ -56,27 +72,30 @@ class GaleriaComponent extends Component
 
         $this->loading = true;
         
-        // Incrementar offset para la siguiente página
-        $nuevoOffset = $this->offset + $this->limit;
-        
-        $nuevasImagenes = $this->obtenerImagenesConReacciones($nuevoOffset, $this->limit);
+        // Obtener el siguiente lote de imágenes
+        $nuevasImagenes = $this->obtenerImagenesConReacciones($this->offset, $this->limit);
 
         if (count($nuevasImagenes) > 0) {
+            // Fusionar las nuevas imágenes con las existentes
             $this->imagenes = array_merge($this->imagenes, $nuevasImagenes);
-            $this->offset = $nuevoOffset;
+            // Actualizar el offset
+            $this->offset = count($this->imagenes);
         }
 
-        // Verificar si hay más imágenes
-        $this->hasMore = ($this->offset + $this->limit) < $this->totalImagenes;
+        // Recalcular si hay más imágenes
+        $this->hasMore = $this->offset < $this->totalImagenes;
         $this->loading = false;
 
-        $this->dispatch('imagenesActualizadas', [
+        $data = [
             'imagenes' => $this->imagenes,
             'hasMore' => $this->hasMore,
             'loading' => $this->loading,
             'total' => $this->totalImagenes,
             'cargadas' => count($this->imagenes)
-        ]);
+        ];
+        //dd($data );
+        // Disparar evento para que Alpine.js actualice su estado
+        $this->dispatch('imagenesActualizadas',$data  );
     }
 
     public function abrirSlider($index)
@@ -86,7 +105,6 @@ class GaleriaComponent extends Component
         
         $this->dispatch('sliderAbierto', [
             'index' => $this->currentImageIndex,
-            'imagen' => $this->imagenes[$this->currentImageIndex] ?? null,
             'totalImagenes' => count($this->imagenes)
         ]);
     }
@@ -110,22 +128,19 @@ class GaleriaComponent extends Component
         if ($nuevoIndex !== $this->currentImageIndex) {
             $this->currentImageIndex = $nuevoIndex;
             $this->dispatch('sliderNavegado', [
-                'index' => $this->currentImageIndex,
-                'imagen' => $this->imagenes[$this->currentImageIndex] ?? null
+                'index' => $this->currentImageIndex
             ]);
         }
     }
 
     public function toggleReaction($imageId, $type)
     {
-        $this->userToken = Session::get('upload_token');
+        $this->userToken = Session::get('upload_token'); // Asegurarse de que el token esté disponible
 
         if (!$this->userToken) {
             $this->dispatch('sesionExpirada');
             return;
         }
-
-        $boda = Boda::first();
 
         try {
             $archivo = Archivo::find($imageId);
@@ -133,46 +148,38 @@ class GaleriaComponent extends Component
                 return;
             }
 
-            // Crear clave de reacción
             $reactionKey = $this->userToken . '_' . $imageId;
-
-            // Buscar reacción existente
             $userReaction = UserReaction::where('reaction_key', $reactionKey)->first();
 
             $reactionAdded = false;
             $previousType = null;
+            $boda = Boda::first();
 
             if ($userReaction && $userReaction->type === $type) {
-                // Quitar reacción existente del mismo tipo
                 $userReaction->delete();
                 $archivo->decrement($type);
                 $reactionAdded = false;
             } else {
                 if ($userReaction) {
-                    // Cambiar tipo de reacción
                     $previousType = $userReaction->type;
                     $archivo->decrement($previousType);
                     $userReaction->update(['type' => $type]);
                 } else {
-                    // Nueva reacción
                     UserReaction::create([
                         'reaction_key' => $reactionKey,
                         'archivo_id' => $imageId,
                         'type' => $type,
                         'user_token' => $this->userToken,
-                        'boda_id' => $boda->id,
+                        'boda_id' => $boda->id, // Usar boda_id
                         'mesa' => $this->mesa
                     ]);
                 }
-
                 $archivo->increment($type);
                 $reactionAdded = true;
             }
 
-            // Actualizar imagen en el array local
             $this->actualizarImagenLocal($imageId, $type, $reactionAdded, $previousType);
 
-            // Emitir evento con los datos actualizados
             $archivoFresh = $archivo->fresh();
             $this->dispatch('reaccionActualizada', [
                 'imageId' => $imageId,
@@ -184,7 +191,7 @@ class GaleriaComponent extends Component
                     'unlikes' => $archivoFresh->unlikes ?? 0,
                     'hearts' => $archivoFresh->hearts ?? 0,
                 ],
-                'userReaction' => $reactionAdded ? $type : null
+                'userReaction' => $reactionAdded ? $type : null // Estado de la reacción del usuario
             ]);
 
         } catch (\Exception $e) {
@@ -195,8 +202,10 @@ class GaleriaComponent extends Component
 
     private function obtenerImagenesConReacciones($offset = 0, $limit = null)
     {
-        $query = Archivo::where('aprobado', true)->where('oficial',false)
-            ->orderBy('created_at', 'desc');
+        
+        $query = Archivo::where('aprobado', true)
+                        ->where('oficial', false)
+                        ->orderBy('created_at', 'desc')->orderBy('id', 'desc');
 
         if ($offset > 0) {
             $query->skip($offset);
@@ -207,7 +216,6 @@ class GaleriaComponent extends Component
         }
 
         return $query->get()->map(function ($archivo) {
-            // Verificar reacción del usuario actual
             $reactionKey = $this->userToken . '_' . $archivo->id;
             $userReaction = UserReaction::where('reaction_key', $reactionKey)->first();
 
@@ -223,31 +231,18 @@ class GaleriaComponent extends Component
         })->toArray();
     }
 
-    private function cargarImagenesIniciales()
-    {
-        // Obtener total de imágenes para esta boda
-        $this->totalImagenes = Archivo::where('aprobado', true)->where('oficial',false)->count();
-        
-        // Cargar primeras imágenes
-        $this->imagenes = $this->obtenerImagenesConReacciones(0, $this->limit);
-        
-        // Verificar si hay más imágenes
-        $this->hasMore = $this->totalImagenes > $this->limit;
-    }
-
+    // Actualiza el array local de imágenes para reflejar los cambios de reacción
     private function actualizarImagenLocal($imageId, $type, $reactionAdded, $previousType = null)
     {
         foreach ($this->imagenes as &$imagen) {
             if ($imagen['id'] == $imageId) {
                 if ($reactionAdded) {
-                    // Si había una reacción anterior diferente, decrementarla
                     if ($previousType && $previousType !== $type) {
                         $imagen[$previousType]--;
                     }
                     $imagen[$type]++;
                     $imagen['user_reaction'] = $type;
                 } else {
-                    // Quitar reacción
                     $imagen[$type]--;
                     $imagen['user_reaction'] = null;
                 }
