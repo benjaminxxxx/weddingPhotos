@@ -5,10 +5,16 @@ use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
 
 Route::get('/', function () {
-    return view('welcome');
-})->name('home');
+    return view('dashboard');
+})->middleware(['auth', 'verified'])->name('home');
 
 Route::get('/panel', [InvitadoController::class, 'panel'])->name('invitado.panel');
+Route::get('/expirado', function () {
+    return view('invitado.expirado');
+})->name('invitado.expirado');
+Route::get('/settings/boda', function () {
+    return view('settings');
+})->middleware(['auth', 'verified'])->name('settings.boda');
 
 Route::view('dashboard', 'dashboard')
     ->middleware(['auth', 'verified'])
@@ -24,4 +30,4 @@ Route::middleware(['auth'])->group(function () {
 
 Route::get('/{uuid}/mesa/{mesa}', [InvitadoController::class, 'acceder']);
 
-require __DIR__.'/auth.php';
+require __DIR__ . '/auth.php';

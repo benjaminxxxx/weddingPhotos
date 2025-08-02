@@ -89,7 +89,7 @@ class CargarImagenComponent extends Component
                     'upload_token' => $uploadToken,
                     'nombre_opcional' => $nombreGenerado,
                     'mensaje_opcional' => null, // Ya está en galería
-                    'oficial' => false,
+                    'oficial' => auth()->check(),
                     'galeria' => false,
                 ]);
             }

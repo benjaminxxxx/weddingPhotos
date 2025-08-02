@@ -13,7 +13,10 @@ class Boda extends Model
         'uuid',
         'nombre',
         'subida_activa',
-        'fecha_expiracion'
+        'fecha_expiracion',
+        'ver_planning',
+        'ver_galeria',
+        'ver_principal'
     ];
 
     public function archivos()

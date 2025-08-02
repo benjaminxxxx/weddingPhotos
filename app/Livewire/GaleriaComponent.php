@@ -12,7 +12,7 @@ class GaleriaComponent extends Component
 {
     public $imagenes = [];
     public $offset = 0;
-    public $limit = 12;
+    public $limit = 100;
     public $hasMore = true;
     public $loading = false;
     public $sliderOpen = false;
@@ -28,6 +28,7 @@ class GaleriaComponent extends Component
     {
         // Obtener datos de la sesión
         $this->userToken = Session::get('upload_token');
+        
         $this->bodaUuid = Session::get('boda_uuid');
         $this->mesa = Session::get('mesa');
 
@@ -117,10 +118,14 @@ class GaleriaComponent extends Component
 
     public function toggleReaction($imageId, $type)
     {
+        $this->userToken = Session::get('upload_token');
+
         if (!$this->userToken) {
             $this->dispatch('sesionExpirada');
             return;
         }
+
+        $boda = Boda::first();
 
         try {
             $archivo = Archivo::find($imageId);
@@ -155,7 +160,7 @@ class GaleriaComponent extends Component
                         'archivo_id' => $imageId,
                         'type' => $type,
                         'user_token' => $this->userToken,
-                        'boda_id' => $this->bodaId,
+                        'boda_id' => $boda->id,
                         'mesa' => $this->mesa
                     ]);
                 }
@@ -184,13 +189,13 @@ class GaleriaComponent extends Component
 
         } catch (\Exception $e) {
             \Log::error('Error en toggleReaction: ' . $e->getMessage());
-            $this->dispatch('errorReaccion', 'Error al procesar la reacción');
+            $this->dispatch('errorReaccion', $e->getMessage());
         }
     }
 
     private function obtenerImagenesConReacciones($offset = 0, $limit = null)
     {
-        $query = Archivo::where('boda_id', $this->bodaId)
+        $query = Archivo::where('aprobado', true)->where('oficial',false)
             ->orderBy('created_at', 'desc');
 
         if ($offset > 0) {
@@ -221,7 +226,7 @@ class GaleriaComponent extends Component
     private function cargarImagenesIniciales()
     {
         // Obtener total de imágenes para esta boda
-        $this->totalImagenes = Archivo::where('boda_id', $this->bodaId)->count();
+        $this->totalImagenes = Archivo::where('aprobado', true)->where('oficial',false)->count();
         
         // Cargar primeras imágenes
         $this->imagenes = $this->obtenerImagenesConReacciones(0, $this->limit);
